@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Технический отчёт — Робот Бип</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    /* Цвета документа помогают отличать поля для заполнения. */
+    :root { --ink:#202b40; --line:#9aa5b5; --accent:#1d4ed8; --soft:#edf3ff; }
+    body { margin:0; background:#e5eaf2; color:#202b40; font-family:Arial, sans-serif; }
+    .sheet {
+      box-sizing:border-box; width:210mm; min-height:297mm; margin:0 auto 18px;
+      padding:18mm; background:#fff; box-shadow:0 6px 24px #0002;
+      font-family:"Times New Roman", Georgia, serif;
+    }
+    .doc-title { margin:0; text-align:center; font-size:20pt; line-height:1.25; font-weight:bold; }
+    .doc-subtitle { margin:9px 0 20px; text-align:center; font-size:14pt; }
+    .section-title { margin:18px 0 7px; padding-bottom:3px; border-bottom:1.5px solid var(--ink); font-size:13pt; }
+    p, li, th, td { font-size:11.5pt; line-height:1.45; }
+    p { margin:6px 0; }
+    ul, ol { margin:6px 0 6px 22px; padding:0; }
+    li { margin:3px 0; }
+    table { width:100%; border-collapse:collapse; margin:8px 0; }
+    th, td { border:1px solid var(--line); padding:5px 7px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); }
+    .field {
+      display:inline-block; min-width:70px; padding:0 3px; border-bottom:1px dotted var(--accent);
+      background:#f8faff; outline:none; white-space:pre-wrap;
+    }
+    .field:focus { background:#fff4bd; }
+    .field:empty::before { content:attr(data-placeholder); color:#8b95a5; }
+    .toolbar {
+      position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; justify-content:center;
+      align-items:center; gap:8px; margin-bottom:18px; padding:10px; color:#fff;
+      background:#202b40; font:13px Arial, sans-serif;
+    }
+    .btn { border:0; border-radius:7px; padding:8px 12px; background:#fff; color:#202b40; font-weight:bold; cursor:pointer; }
+    .btn:hover { background:#ffd36b; }
+    .btn.primary { background:#2563eb; color:white; }
+    .toolbar-note { font-size:12px; }
+    body.mode-short .detail { display:none !important; }
+    .status { border-left:5px solid #2f6fd0; padding:9px 12px; background:#f1f6ff; }
+    .checkline { margin:5px 0; }
+    .signature { display:flex; justify-content:space-between; gap:18px; margin-top:26px; }
+    #mailModal { display:none; position:fixed; inset:0; z-index:30; overflow:auto; padding:24px; background:#0009; font-family:Arial,sans-serif; }
+    #mailModal.open { display:block; }
+    @media print {
+      body { background:white; }
+      .no-print { display:none !important; }
+      .sheet { width:auto; min-height:0; margin:0; padding:0; box-shadow:none; }
+      .field { background:none; border:0; }
+      table, tr, td, th { page-break-inside:avoid; }
+      h2 { page-break-after:avoid; }
+      @page { size:A4; margin:17mm 16mm; }
+    }
+  </style>
+</head>
+<body class="mode-full">
+  <!-- Панель редактирования и печати. Она не попадает в отчёт. -->
+  <nav class="toolbar no-print" aria-label="Управление отчётом">
+    <span class="toolbar-note">Вариант:</span>
+    <button class="btn" data-mode="short" type="button">Краткий</button>
+    <button class="btn primary" data-mode="full" type="button">Подробный</button>
+    <button class="btn primary" id="printButton" type="button">Печать / PDF</button>
+    <button class="btn" id="copyButton" type="button">Скопировать в Word</button>
+    <button class="btn" id="mailButton" type="button">Черновик письма</button>
+    <button class="btn" id="clearButton" type="button">Очистить поля</button>
+    <span class="toolbar-note" id="saveStatus">Поля сохраняются в этом браузере</span>
+  </nav>
+
+  <main class="sheet" id="report">
+    <p style="text-align:center;margin:0 0 20px"><span class="field" id="organization" data-placeholder="Организация / подразделение" contenteditable="true"></span></p>
+    <h1 class="doc-title">ТЕХНИЧЕСКИЙ ОТЧЁТ</h1>
+    <p class="doc-subtitle">о демонстрационном прототипе интерактивного веб-приложения<br><b>«Робот Бип собирает звёзды»</b></p>
+
+    <h2 class="section-title">1. Общие сведения</h2>
+    <table>
+      <tr><th style="width:37%">Инициатор / заявитель</th><td><span class="field" id="author" data-placeholder="ФИО" contenteditable="true"></span></td></tr>
+      <tr><th>Должность / подразделение</th><td><span class="field" id="position" data-placeholder="Заполнить при необходимости" contenteditable="true"></span></td></tr>
+      <tr><th>Получатель отчёта</th><td><span class="field" id="manager" data-placeholder="ФИО и должность руководителя" contenteditable="true"></span></td></tr>
+      <tr><th>Версия прототипа</th><td><span class="field" id="version" contenteditable="true">Демонстрационная версия</span></td></tr>
+      <tr><th>Дата составления</th><td><span class="field" id="reportDate" contenteditable="true"></span></td></tr>
+      <tr><th>Целевая аудитория приложения</th><td>Дети 7–10 лет; приложение также предназначено для демонстрации педагогом.</td></tr>
+    </table>
+
+    <p class="status"><b>Статус:</b> интерактивный демонстрационный прототип. Этот документ описывает техническую реализацию и комплект передачи. Проведение занятия, внедрение в образовательную программу и педагогическая апробация здесь не заявляются.</p>
+
+    <h2 class="section-title">2. Назначение и состав проекта</h2>
+    <p><b>Назначение:</b> наглядно показать конечный цикл команд на примере робота, который по очереди собирает звёзды. Пользователь видит строку программы, действие робота и изменение счётчика.</p>
+    <p><b>Основной файл:</b> <span class="field" id="mainFile" contenteditable="true">index.html</span>. Приложение выполнено как одностраничная веб-страница; отдельная установка и сборка проекта не предусмотрены.</p>
+    <table>
+      <tr><th style="width:28%">Часть приложения</th><th>Назначение</th><th style="width:31%">Реализация</th></tr>
+      <tr><td>Поле игры</td><td>Показывает робота, звёзды и рюкзак со счётчиком.</td><td>HTML, CSS, встроенный SVG робота, текстовые символы звёзд.</td></tr>
+      <tr><td>Список команд</td><td>Хранит названия команд и описание их действий.</td><td>Объект <code>COMMANDS</code> в JavaScript.</td></tr>
+      <tr><td>Логика цикла</td><td>Управляет текущей командой, номером круга и завершением заданного числа повторов.</td><td>JavaScript: состояние приложения и функция выполнения шага.</td></tr>
+      <tr><td>Оформление</td><td>Задаёт цвета, размеры, адаптивную сетку и анимации.</td><td>Собственный CSS и Tailwind CSS Browser CDN.</td></tr>
+      <tr><td>Настройки</td><td>Запоминают количество звёзд и порядок команд в браузере.</td><td><code>localStorage</code>; сервер и аккаунт не используются.</td></tr>
+    </table>
+
+    <h2 class="section-title">3. Технические характеристики</h2>
+    <table>
+      <tr><th style="width:32%">Параметр</th><th>Значение</th></tr>
+      <tr><td>Формат</td><td>Один файл HTML5 с встроенными стилями и JavaScript.</td></tr>
+      <tr><td>Технологии</td><td>HTML, CSS, JavaScript, встроенная SVG-графика; Tailwind CSS подключается по CDN.</td></tr>
+      <tr><td>Серверная часть</td><td>Не предусмотрена. Обработка происходит в браузере пользователя.</td></tr>
+      <tr><td>Сеть</td><td>Для загрузки Tailwind CSS и полного оформления необходимо подключение к интернету. SVG-рисунок робота встроен в HTML; внешние фотографии не используются.</td></tr>
+      <tr><td>Хранение данных</td><td>В браузере сохраняются только выбранное число звёзд и порядок команд. Передачи этих настроек на сервер нет.</td></tr>
+      <tr><td>Запуск</td><td>Открыть <code>index.html</code> в современном браузере. Для показа рекомендуется заранее проверить доступ к CDN и открыть файл на используемом компьютере.</td></tr>
+    </table>
+
+    <h2 class="section-title">4. Функции пользовательского интерфейса</h2>
+    <table>
+      <tr><th style="width:27%">Функция</th><th>Что делает</th><th style="width:31%">Как показать</th></tr>
+      <tr><td>«Шаг»</td><td>Выполняет одну команду; текущая строка выделяется.</td><td>Нажать несколько раз и наблюдать за Бипом.</td></tr>
+      <tr><td>«Один круг»</td><td>Автоматически выполняет команды одного круга и останавливается на границе круга.</td><td>Запустить и посчитать четыре команды.</td></tr>
+      <tr><td>«Пуск / Пауза»</td><td>Автоматически выполняет заданное число кругов или ставит показ на паузу.</td><td>Наблюдать движение, рюкзак и завершение.</td></tr>
+      <tr><td>Количество звёзд</td><td>Кнопки «+» и «−» задают от 1 до 8 повторов.</td><td>Изменить число и сравнить длительность цикла.</td></tr>
+      <tr><td>Перестановка команд</td><td>Стрелки ↑ и ↓ меняют порядок строк программы.</td><td>Переставить команды, запустить и обсудить результат.</td></tr>
+      <tr><td>«Сломать программу»</td><td>Выбирает один из заранее заданных неправильных порядков; приложение показывает сообщение об ошибке.</td><td>Запустить сломанный вариант, затем восстановить порядок стрелками.</td></tr>
+      <tr><td>«А без цикла?»</td><td>Показывает команды подряд для каждого повтора и считает их количество.</td><td>Сравнить короткую программу с длинным списком.</td></tr>
+      <tr><td>Памятка</td><td>Открывает печатное представление таблицы команд.</td><td>Нажать «Памятка», в окне печати выбрать PDF или принтер.</td></tr>
+    </table>
+
+    <h2 class="section-title">5. Принцип работы и границы текущей версии</h2>
+    <ol>
+      <li>При старте создаётся поле с выбранным количеством звёзд и правильный порядок четырёх команд.</li>
+      <li>Каждое нажатие «Шаг» выполняет одну команду: робот едет к ближайшей звезде, берёт её, кладёт в рюкзак или показывает проверку поля.</li>
+      <li>После четырёх команд увеличивается номер круга. После выполнения заданного количества повторов программа показывает завершение.</li>
+    </ol>
+    <p><b>Важно для точного описания:</b> команда «проверь: есть ещё?» показывает число оставшихся звёзд, но решение об остановке принимает счётчик заданного числа кругов. Это конечное повторение «N раз», не свободный цикл «пока на поле есть звёзды».</p>
+    <p class="detail"><b>Режим поиска ошибки:</b> кнопка выбирает один из заранее заданных неправильных порядков, а стрелки позволяют восстановить правильную последовательность.</p>
+
+    <h2 class="section-title">6. Комплект для передачи и демонстрации</h2>
+    <table>
+      <tr><th style="width:27%">Материал</th><th>Статус / действие</th><th style="width:26%">Имя файла</th></tr>
+      <tr><td>Веб-приложение</td><td>Приложить исходный HTML-файл.</td><td><span class="field" id="fileApp" contenteditable="true">index.html</span></td></tr>
+      <tr><td>Технический отчёт</td><td>Заполнить поля, распечатать или сохранить в PDF.</td><td><span class="field" id="fileReport" contenteditable="true">Технический_отчёт_Робот_Бип.pdf</span></td></tr>
+      <tr><td>Видео с экрана</td><td>Записать отдельно с голосовым объяснением; внести фактическое имя файла или ссылку.</td><td><span class="field" id="fileVideo" data-placeholder="Заполнить после записи" contenteditable="true"></span></td></tr>
+      <tr><td>Скриншоты</td><td>При необходимости приложить стартовый экран, один круг и режим ошибки.</td><td><span class="field" id="fileShots" data-placeholder="Заполнить, если прикладываются" contenteditable="true"></span></td></tr>
+    </table>
+
+    <h2 class="section-title detail">7. Сценарий проверки перед сдачей</h2>
+    <p class="detail">Отметьте пункты после фактической проверки на компьютере, с которого будете демонстрировать:</p>
+    <div class="detail">
+      <p class="checkline"><label><input type="checkbox"> Открывается <code>index.html</code>, интерфейс отображается, Tailwind CDN доступен.</label></p>
+      <p class="checkline"><label><input type="checkbox"> «Шаг» выполняет одну команду, робот перемещается, подсветка строки обновляется.</label></p>
+      <p class="checkline"><label><input type="checkbox"> «Один круг» останавливается после круга; «Пуск» доходит до заданного числа и завершает работу.</label></p>
+      <p class="checkline"><label><input type="checkbox"> Кнопки «+» и «−» меняют число звёзд; счётчик рюкзака совпадает с итогом.</label></p>
+      <p class="checkline"><label><input type="checkbox"> Режим ошибки и стрелки перестановки работают; «Починить» возвращает правильный порядок.</label></p>
+      <p class="checkline"><label><input type="checkbox"> «А без цикла?» показывает список; «Памятка» открывает печать/PDF.</label></p>
+      <p class="checkline"><label><input type="checkbox"> Записано видео, голос объясняет действия, в кадре нет личных данных и лишних окон.</label></p>
+      <p style="margin-top:10px">Дата проверки: <span class="field" id="checkDate" data-placeholder="дата" contenteditable="true"></span> &nbsp; Устройство/браузер: <span class="field" id="browser" data-placeholder="например, ноутбук / Chrome" contenteditable="true"></span></p>
+    </div>
+
+    <h2 class="section-title detail">8. План короткой видеодемонстрации</h2>
+    <table class="detail">
+      <tr><th style="width:15%">Время</th><th style="width:31%">Действие на экране</th><th>Пример объяснения</th></tr>
+      <tr><td>0:00–0:10</td><td>Показать поле и робота.</td><td>«Это Бип. Ему нужно собрать звёзды. Для этого есть четыре команды».</td></tr>
+      <tr><td>0:10–0:25</td><td>Показать блок «повтори N раз» и подсветку команд.</td><td>«Каждая строка становится действием. Один круг — четыре команды».</td></tr>
+      <tr><td>0:25–0:45</td><td>Нажать «Один круг», показать рюкзак и номер следующего круга.</td><td>«Бип выполнил команды по порядку и собрал одну звезду».</td></tr>
+      <tr><td>0:45–1:05</td><td>Уменьшить число до 2 и нажать «Пуск».</td><td>«Число повторов меняется. Когда два круга выполнены, показ останавливается».</td></tr>
+      <tr><td>1:05–1:25</td><td>Показать «Сломать программу», объяснение ошибки и восстановление стрелками.</td><td>«Если команды перепутаны, Бип может запутаться. Мы не ругаем его, а спокойно ищем, что переставить».</td></tr>
+      <tr><td>1:25–1:40</td><td>Показать список «А без цикла?» и итоговый экран.</td><td>«С циклом программа короткая. Без цикла пришлось бы повторить команды много раз».</td></tr>
+    </table>
+
+    <h2 class="section-title detail">9. Инструменты и вклад участников</h2>
+    <p><b>Подготовка кода:</b> <span class="field" id="aiUse" contenteditable="true">при подготовке HTML/CSS/JavaScript-кода использовался ИИ-ассистент. Инициатор проекта задавал требования, выбирал сюжет и проверял работу интерфейса; фактический вклад можно уточнить перед передачей.</span></p>
+    <p><b>Дополнительная обработка и запись видео:</b> <span class="field" id="contribution" data-placeholder="указать фактические действия: подготовка файлов, запись демонстрации и т. п." contenteditable="true"></span></p>
+
+    <h2 class="section-title">10. Заключение</h2>
+    <p>Подготовлен одностраничный интерактивный прототип для демонстрации цикла повторения команд. Для рассмотрения передаются HTML-файл, настоящий технический отчёт и видеозапись экрана после её создания. Дальнейшие изменения, требования к формату и решение о применении определяются после обратной связи руководителя.</p>
+
+    <div class="signature">
+      <span>Составитель отчёта: __________ / <span class="field" id="signature" data-placeholder="И.О. Фамилия" contenteditable="true"></span></span>
+      <span>Дата: <span class="field" id="signatureDate" data-placeholder="дата" contenteditable="true"></span></span>
+    </div>
+  </main>
+
+  <!-- Это окно готовит нейтральное сопроводительное письмо. -->
+  <div class="no-print" id="mailModal" role="dialog" aria-modal="true" aria-labelledby="mailTitle">
+    <div class="mx-auto max-w-2xl rounded-xl bg-white p-5">
+      <h2 id="mailTitle" class="mb-3 text-lg font-bold">Черновик письма руководителю</h2>
+      <textarea id="mailText" class="h-64 w-full rounded-lg border p-3 text-sm"></textarea>
+      <div class="mt-3 flex gap-2">
+        <button class="btn primary" id="copyMailButton" type="button">Скопировать письмо</button>
+        <button class="btn" id="closeMailButton" type="button">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Эта строка находит поле по его имени.
+    const $ = (id) => document.getElementById(id);
+    const fields = document.querySelectorAll('.field');
+
+    // Эти строки восстанавливают заполнение и сохраняют новые изменения.
+    fields.forEach((field) => {
+      try {
+        const saved = localStorage.getItem('techReport_' + field.id);
+        if (saved !== null) field.textContent = saved;
+        field.addEventListener('input', () => {
+          try { localStorage.setItem('techReport_' + field.id, field.textContent); } catch (error) {}
+        });
+      } catch (error) {}
+    });
+
+    // Эта строка ставит сегодняшнюю дату только в незаполненные поля даты.
+    const today = new Date().toLocaleDateString('ru-RU');
+    ['reportDate', 'signatureDate'].forEach((id) => { if (!$(id).textContent.trim()) $(id).textContent = today; });
+
+    // Эти кнопки переключают краткий и подробный вид документа.
+    document.querySelectorAll('[data-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.body.classList.toggle('mode-short', button.dataset.mode === 'short');
+        document.querySelectorAll('[data-mode]').forEach((item) => item.classList.remove('primary'));
+        button.classList.add('primary');
+      });
+    });
+
+    // Эта кнопка открывает стандартное окно печати браузера.
+    $('printButton').addEventListener('click', () => window.print());
+
+    // Эта кнопка копирует текст отчёта для вставки в Word.
+    $('copyButton').addEventListener('click', async () => {
+      const text = $('report').innerText.replace(/\n{3,}/g, '\n\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        $('saveStatus').textContent = 'Отчёт скопирован. Вставьте его в Word.';
+      } catch (error) {
+        $('saveStatus').textContent = 'Выделите текст отчёта и скопируйте вручную.';
+      }
+    });
+
+    // Эта кнопка собирает нейтральное письмо без заявления об апробации.
+    $('mailButton').addEventListener('click', () => {
+      const author = $('author').textContent.trim() || '[Ваше имя]';
+      const manager = $('manager').textContent.trim() || '[Имя руководителя]';
+      $('mailText').value = `Тема: На рассмотрение — технический прототип «Робот Бип собирает звёзды»\n\nУважаемый(ая) ${manager}!\n\nНаправляю на предварительное рассмотрение технический отчёт и демонстрационный файл интерактивного веб-приложения «Робот Бип собирает звёзды».\n\nВ комплект входят:\n1. Технический отчёт (PDF).\n2. Файл приложения index.html.\n3. Видеозапись демонстрации экрана (будет приложена после записи).\n\nБуду признательна за рекомендации по формату дальнейшего оформления и требованиям к демонстрации.\n\nС уважением,\n${author}`;
+      $('mailModal').classList.add('open');
+    });
+
+    // Эти кнопки копируют черновик письма и закрывают его.
+    $('closeMailButton').addEventListener('click', () => $('mailModal').classList.remove('open'));
+    $('copyMailButton').addEventListener('click', async () => {
+      $('mailText').select();
+      try { await navigator.clipboard.writeText($('mailText').value); } catch (error) { document.execCommand('copy'); }
+      $('copyMailButton').textContent = 'Скопировано';
+      setTimeout(() => $('copyMailButton').textContent = 'Скопировать письмо', 1600);
+    });
+
+    // Эта кнопка очищает поля только после подтверждения.
+    $('clearButton').addEventListener('click', () => {
+      if (!confirm('Очистить все заполненные поля?')) return;
+      fields.forEach((field) => {
+        field.textContent = '';
+        try { localStorage.removeItem('techReport_' + field.id); } catch (error) {}
+      });
+      $('reportDate').textContent = today;
+      $('signatureDate').textContent = today;
+    });
+  </script>
+</body>
+</html>

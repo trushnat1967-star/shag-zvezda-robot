@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <!-- Эта строка помогает браузеру правильно показывать русские буквы. -->
+  <meta charset="UTF-8">
+  <!-- Эта строка подстраивает страницу под экран телефона или планшета. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Эта строка задаёт название вкладки браузера. -->
+  <title>Робот Бип собирает звёзды — тренажёр цикла</title>
+  <!-- Эта строка подключает Tailwind: готовые классы для оформления. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <style>
+    /* Здесь лежат главные цвета. Поменяешь тут — поменяется вся страница. */
+    :root {
+      --ink: #26324f;      /* тёмно-синий цвет текста и рамок */
+      --paper: #ffffff;    /* белый фон карточек */
+      --sky: #cfe8ff;      /* небесно-голубой */
+      --mint: #7fd1b9;     /* мятный — тело робота */
+      --sun: #ffd36b;      /* жёлтый — звёзды и акценты */
+      --orange: #ff8f4a;   /* оранжевый — текущая команда */
+      --red: #e8553f;      /* красный — ошибка */
+    }
+
+    /* Этот блок задаёт вид всей страницы. */
+    body {
+      margin: 0;
+      color: var(--ink);
+      background-color: #e9f1ff;
+      background-image: radial-gradient(#c3d8f7 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+      font-family: "Trebuchet MS", Arial, sans-serif;
+    }
+
+    /* ====== ПОЛЕ, ПО КОТОРОМУ ЕЗДИТ РОБОТ ====== */
+    .scene {
+      position: relative;
+      height: 240px;
+      overflow: hidden;
+      border: 4px solid var(--ink);
+      border-radius: 24px;
+      background: linear-gradient(#eaf6ff 0%, #d7ecff 62%, #b9d9b0 62%, #a9d09e 100%);
+      box-shadow: 0 8px 0 var(--ink);
+    }
+
+    /* Эта полоска — пол, по которому катится робот. */
+    .floor-line {
+      position: absolute; left: 0; right: 0; top: 62%;
+      border-top: 4px dashed #8fb784;
+    }
+
+    /* Эта звезда стоит на поле и ждёт робота. */
+    .star {
+      position: absolute; bottom: 16%;
+      transform: translateX(-50%);
+      font-size: 34px; line-height: 1;
+      transition: transform .35s, opacity .35s;
+      filter: drop-shadow(0 3px 0 rgba(0,0,0,.15));
+    }
+    /* Этот класс прячет звезду, когда робот её забрал. */
+    .star.taken { transform: translateX(-50%) scale(.2) translateY(-40px); opacity: 0; }
+
+    /* Этот блок — сам робот. Он едет вдоль поля. */
+    .robot {
+      position: absolute; bottom: 14%;
+      width: 86px;
+      transform: translateX(-50%);
+      transition: left .55s cubic-bezier(.3,.8,.3,1);
+    }
+    .robot svg { width: 100%; display: block; }
+
+    /* Эти строки меняют выражение лица робота. */
+    .eyes-happy, .eyes-sad { display: none; }
+    .robot.happy .eyes-normal { display: none; }
+    .robot.happy .eyes-happy { display: block; }
+    .robot.sad .eyes-normal { display: none; }
+    .robot.sad .eyes-sad { display: block; }
+
+    /* Эта лампочка на макушке мигает, когда робот работает. */
+    .robot.busy .bulb { animation: blink .6s infinite alternate; }
+    @keyframes blink { from { fill: var(--orange); } to { fill: var(--sun); } }
+
+    /* Эта рука вытягивается, когда робот берёт звезду. */
+    .arm { transition: transform .25s; transform-origin: 60px 66px; }
+    .robot.reach .arm { transform: rotate(-35deg) translateX(6px); }
+
+    /* Эта звёздочка летит рядом с роботом, пока он её держит. */
+    .held {
+      position: absolute; top: -6px; right: -16px;
+      font-size: 26px; opacity: 0; transform: scale(.4);
+      transition: opacity .25s, transform .25s;
+    }
+    .robot.holds .held { opacity: 1; transform: scale(1); }
+
+    /* Этот рюкзак показывает, сколько звёзд уже собрано. */
+    .backpack {
+      position: absolute; top: 12px; right: 14px;
+      display: flex; align-items: center; gap: 6px;
+      padding: .35rem .7rem; border: 3px solid var(--ink); border-radius: 99px;
+      background: #fff; font-weight: 900;
+      transition: transform .2s;
+    }
+    .backpack.bump { transform: scale(1.18) rotate(-4deg); }
+
+    /* Эта табличка показывает, какой круг идёт. */
+    .round-badge {
+      position: absolute; top: 12px; left: 14px;
+      padding: .35rem .7rem; border: 3px solid var(--ink); border-radius: 99px;
+      background: var(--sun); font-weight: 900;
+    }
+
+    /* ====== ПРОГРАММА РОБОТА ====== */
+    /* Этот блок — одна строчка программы. */
+    .cmd {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .45rem .6rem; border: 3px solid #c3d4ef; border-radius: 12px;
+      background: #fff; font-weight: 800;
+      transition: background-color .2s, border-color .2s, transform .2s;
+    }
+    /* Этот класс подсвечивает команду, которую робот делает прямо сейчас. */
+    .cmd.now { background: var(--orange); border-color: var(--ink); color: #fff; transform: translateX(6px); }
+    /* Этот класс краснеет, если команда не сработала. */
+    .cmd.bad { background: var(--red); border-color: var(--ink); color: #fff; }
+    /* Этот класс гасит команды в паузе между кругами. */
+    .is-resting .cmd { opacity: .4; }
+
+    /* Эти маленькие кнопки двигают команду вверх и вниз. */
+    .move-btn {
+      width: 26px; height: 26px; border: 2px solid var(--ink); border-radius: 7px;
+      background: #fff; font-weight: 900; line-height: 1; cursor: pointer;
+    }
+    .move-btn:hover { background: var(--sun); }
+
+    /* ====== КНОПКИ ====== */
+    .btn {
+      padding: .5rem .85rem; border-radius: 12px; border: 3px solid var(--ink);
+      background: #fff; font-weight: 800; cursor: pointer;
+      box-shadow: 0 4px 0 var(--ink);
+      transition: transform .12s, background-color .15s, box-shadow .12s;
+    }
+    .btn:hover { background: var(--sun); }
+    .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+    .btn.go { background: #2fa36b; color: #fff; }
+    .btn.go:hover { background: #26855a; }
+    .btn.one { background: #2f6fd0; color: #fff; }
+    .btn.one:hover { background: #2559a8; }
+    .btn:focus-visible { outline: 4px solid var(--orange); outline-offset: 3px; }
+
+    /* Этот блок — тёмная панель с подсказкой. */
+    .hint-box { background: var(--ink); color: #fff; border-radius: 22px; box-shadow: 0 8px 0 #141c2f; }
+    .hint-box.error { background: var(--red); box-shadow: 0 8px 0 #9c3123; }
+
+    /* Эта полоска показывает, сколько команд круга сделано. */
+    .progress-fill {
+      height: 100%; width: 0%; border-radius: inherit;
+      background: linear-gradient(90deg, var(--sun), var(--orange));
+      transition: width .35s;
+    }
+
+    /* Этот класс делает лёгкое подпрыгивание нового текста. */
+    .pop { animation: pop .35s ease; }
+    @keyframes pop { from { transform: translateY(8px); opacity: .2; } to { transform: none; opacity: 1; } }
+
+    /* ====== САЛЮТ ====== */
+    .cheer {
+      position: fixed; left: 50%; top: 22%; z-index: 60;
+      transform: translate(-50%, -24px) scale(.85);
+      padding: 1rem 1.6rem; border-radius: 24px;
+      border: 4px solid var(--ink); background: var(--sun);
+      font-size: 1.15rem; font-weight: 900; text-align: center;
+      box-shadow: 0 10px 0 var(--ink);
+      pointer-events: none; opacity: 0; visibility: hidden;
+      transition: transform .3s cubic-bezier(.2,.9,.3,1.4), opacity .3s;
+    }
+    .cheer.show { transform: translate(-50%, 0) scale(1); opacity: 1; visibility: visible; }
+    .spark {
+      position: fixed; z-index: 59; width: 14px; height: 14px; border-radius: 50%;
+      pointer-events: none; animation: fly 1s ease-out forwards;
+    }
+    @keyframes fly {
+      from { transform: translate(0,0) scale(1); opacity: 1; }
+      to { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
+    }
+
+    /* Эта памятка видна только на бумаге. */
+    .print-only { display: none; }
+    @media print {
+      body { background: #fff; }
+      .screen-only { display: none !important; }
+      .print-only { display: block; }
+      table, th, td { border: 1px solid #333; border-collapse: collapse; padding: 6px; }
+    }
+
+    /* Этот блок выключает анимации тем, кому они мешают. */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .cheer.show { opacity: 1 !important; visibility: visible !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen-only min-h-screen px-4 py-8 sm:px-8 sm:py-12">
+    <div class="mx-auto max-w-5xl">
+
+      <!-- Шапка страницы. -->
+      <header class="mb-6">
+        <p class="mb-2 text-sm font-black tracking-[0.18em] uppercase text-[#2f6fd0]">Мастерская роботов</p>
+        <h1 class="m-0 text-5xl sm:text-6xl font-black leading-[.95] tracking-tight">Робот Бип<br><span class="text-[#ff8f4a]">собирает звёзды</span></h1>
+        <p class="mt-4 mb-0 max-w-2xl text-lg font-bold leading-snug">
+          Бип умеет только 4 команды. Чтобы собрать все звёзды, он повторяет их снова и снова. Это и есть цикл.
+        </p>
+      </header>
+
+      <!-- Поле, по которому ездит робот. -->
+      <section class="scene mb-5" aria-label="Поле со звёздами">
+        <div class="floor-line"></div>
+        <div class="round-badge" id="roundBadge">Круг 1</div>
+        <div class="backpack" id="backpack"><span>🎒</span><span id="bagCount">0</span></div>
+
+        <!-- Сюда JavaScript ставит звёзды. -->
+        <div id="field"></div>
+
+        <!-- Это сам робот. Он двигается, меняя свойство left. -->
+        <div class="robot" id="robot" style="left:5%">
+          <span class="held">⭐</span>
+          <svg viewBox="0 0 80 104" fill="none" aria-hidden="true">
+            <line x1="40" y1="18" x2="40" y2="8" stroke="#26324f" stroke-width="4" stroke-linecap="round"/>
+            <circle class="bulb" cx="40" cy="6" r="5" fill="#ff8f4a" stroke="#26324f" stroke-width="3"/>
+            <rect x="12" y="18" width="56" height="40" rx="13" fill="#cfe8ff" stroke="#26324f" stroke-width="4"/>
+            <g class="eyes-normal"><circle cx="30" cy="36" r="5" fill="#26324f"/><circle cx="50" cy="36" r="5" fill="#26324f"/></g>
+            <g class="eyes-happy"><path d="M24 38c3-6 9-6 12 0M44 38c3-6 9-6 12 0" stroke="#26324f" stroke-width="4" stroke-linecap="round"/></g>
+            <g class="eyes-sad"><path d="M25 31l10 10M35 31l-10 10M45 31l10 10M55 31l-10 10" stroke="#26324f" stroke-width="4" stroke-linecap="round"/></g>
+            <rect x="31" y="47" width="18" height="5" rx="2.5" fill="#26324f"/>
+            <rect x="18" y="60" width="44" height="28" rx="9" fill="#7fd1b9" stroke="#26324f" stroke-width="4"/>
+            <circle cx="40" cy="74" r="6" fill="#ffd36b" stroke="#26324f" stroke-width="3"/>
+            <path class="arm" d="M62 68h13" stroke="#26324f" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="28" cy="94" r="8" fill="#26324f"/><circle cx="52" cy="94" r="8" fill="#26324f"/>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Пульт управления роботом. -->
+      <section class="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border-[3px] border-[#c3d4ef] bg-white/80 p-3">
+        <button class="btn" id="btnReset" type="button">↺ Сначала</button>
+        <button class="btn" id="btnStep" type="button">Шаг →</button>
+        <button class="btn one" id="btnCircle" type="button">⏭ Один круг</button>
+        <button class="btn go" id="btnRun" type="button">▶ Пуск</button>
+        <span class="ml-auto flex items-center gap-2 font-black">
+          звёзд
+          <button class="btn px-2 py-1" id="btnMinus" type="button">−</button>
+          <span class="inline-grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white" id="roundsValue">5</span>
+          <button class="btn px-2 py-1" id="btnPlus" type="button">+</button>
+        </span>
+      </section>
+
+      <!-- Слева программа робота, справа подсказки и математика. -->
+      <section class="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
+
+        <div class="rounded-2xl border-[3px] border-[#c3d4ef] bg-white/85 p-4">
+          <p class="m-0 mb-2 text-xs font-black uppercase tracking-wider text-[#2f6fd0]">Программа робота</p>
+
+          <!-- Это заголовок цикла: он повторяет команды внутри. -->
+          <div class="mb-2 rounded-xl bg-[#ffe9a8] px-3 py-2 font-mono font-black" id="loopHead">повтори 5 раз:</div>
+
+          <!-- Сюда JavaScript вставит 4 команды. Их можно менять местами. -->
+          <div class="space-y-2 pl-4" id="program"></div>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            <!-- Эта кнопка нарочно путает команды, чтобы дети искали ошибку. -->
+            <button class="btn text-sm" id="btnShuffle" type="button">🐞 Сломать программу</button>
+            <!-- Эта кнопка возвращает правильный порядок. -->
+            <button class="btn text-sm" id="btnFix" type="button">✔ Починить</button>
+            <!-- Эта кнопка показывает, сколько строк было бы без цикла. -->
+            <button class="btn text-sm" id="btnNoLoop" type="button">🤔 А без цикла?</button>
+          </div>
+
+          <!-- Здесь появляется длинный список команд без цикла. -->
+          <div class="mt-3 hidden" id="noLoopBox">
+            <div class="max-h-48 space-y-1 overflow-auto rounded-xl bg-[#f1f6ff] p-2 font-mono text-xs" id="noLoopLines"></div>
+            <p class="mt-2 mb-0 text-sm font-black text-[#e8553f]" id="noLoopCount"></p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Эта карточка объясняет, что делает каждая команда. -->
+          <div class="rounded-2xl border-[3px] border-[#c3d4ef] bg-white/85 p-4">
+            <p class="m-0 mb-2 text-xs font-black uppercase tracking-wider text-[#2f6fd0]">Что сейчас делает Бип</p>
+            <p class="m-0 text-lg font-black" id="doingNow">Ждёт команду.</p>
+            <p class="mt-2 mb-0 text-sm font-bold text-[#5a6a8c]" id="seeNow">На экране: робот стоит у края поля.</p>
+          </div>
+
+          <!-- Эта карточка связывает цикл с умножением. -->
+          <div class="rounded-2xl border-[3px] border-[#c3d4ef] bg-white/85 p-4">
+            <p class="m-0 mb-1 text-xs font-black uppercase tracking-wider text-[#2f6fd0]">Цикл и математика</p>
+            <p class="m-0 text-base font-black" id="mathLine"></p>
+            <p class="mt-2 mb-0 text-sm font-bold text-[#5a6a8c]" id="leftLine"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Подсказка и полоска круга. -->
+      <section class="hint-box mt-6 p-5 sm:flex sm:items-center sm:justify-between sm:gap-8" id="hintBox" aria-live="polite">
+        <div>
+          <p class="m-0 text-xs font-black tracking-[0.18em] uppercase text-[#ffd36b]">Подсказка</p>
+          <p class="mt-2 mb-0 text-xl sm:text-2xl font-black leading-tight" id="hintText"></p>
+        </div>
+        <div class="mt-5 w-full sm:mt-0 sm:w-56">
+          <div class="mb-2 flex justify-between text-sm font-bold"><span>Круг пройден на</span><span id="progressLabel">0%</span></div>
+          <div class="h-3 overflow-hidden rounded-full bg-[#4a5878]"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+      </section>
+
+      <!-- Блок для педагога. -->
+      <section class="mt-7 rounded-3xl bg-white/70 p-5 text-sm sm:text-base">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h3 class="m-0 text-lg font-black">Педагогу</h3>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn text-sm" id="btnCheer" type="button">🎉 Проверить салют</button>
+            <button class="btn text-sm" id="btnPrint" type="button">🖨 Памятка</button>
+            <!-- Эта ссылка открывает готовый бланк отчёта для руководителя. -->
+            <a class="btn text-sm no-underline" href="otchet.html" target="_blank" rel="noopener">📄 Техотчёт</a>
+          </div>
+        </div>
+        <ul class="mt-3 mb-0 list-disc space-y-1 pl-5 font-semibold">
+          <li>Жмите «Один круг» и спрашивайте: «Что Бип сделал? Сколько звёзд в рюкзаке? Что будет дальше?»</li>
+          <li>На последнем круге спросите: «А будет ещё один?» — цикл остановится сам, когда выполнит заданное число кругов.</li>
+          <li>Нажмите «🐞 Сломать программу»: Бип запутается. Пусть дети стрелками ↑↓ вернут правильный порядок — это разбор алгоритма.</li>
+          <li>Мостик к математике: 4 команды × N звёзд = столько действий, а программа всё равно короткая.</li>
+          <li>Клавиши: <b>Пробел</b>/<b>→</b> — шаг, <b>C</b> — круг, <b>R</b> — сначала, <b>S</b> — салют.</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <!-- Табличка-поздравление и памятка для печати. -->
+  <div class="cheer screen-only" id="cheer" aria-hidden="true">🎉 Ура!</div>
+  <section class="print-only p-8">
+    <h1 id="printTitle" style="font-size:26px;margin:0 0 10px;"></h1>
+    <table style="width:100%;font-size:14px;" id="printTable"></table>
+    <p id="printRule" style="margin-top:18px;font-size:16px;font-weight:bold;"></p>
+  </section>
+
+  <script>
+    // ====== ЧЕТЫРЕ КОМАНДЫ РОБОТА ======
+    // id — короткое имя, по нему программа понимает, что делать.
+    const COMMANDS = {
+      GO:    { code: 'иди к звезде',    title: 'Иди к звезде',   icon: '👣', see: 'Бип катится к ближайшей звезде.' },
+      TAKE:  { code: 'возьми звезду',   title: 'Возьми звезду',  icon: '🤖', see: 'Рука вытянулась, звезда в руке.' },
+      PACK:  { code: 'положи в рюкзак', title: 'Положи в рюкзак',icon: '🎒', see: 'Звезда отправилась в рюкзак.' },
+      CHECK: { code: 'проверь: есть ещё?', title: 'Проверь поле', icon: '🔍', see: 'Бип смотрит, остались ли звёзды.' }
+    };
+    const RIGHT_ORDER = ['GO', 'TAKE', 'PACK', 'CHECK'];   // правильный порядок команд
+
+    // ====== ПАМЯТЬ ТРЕНАЖЁРА ======
+    let order = [...RIGHT_ORDER];  // порядок команд, его можно менять
+    let stars = [];                // какие звёзды уже собраны
+    let rounds = 5;                // сколько звёзд на поле
+    let robotAt = -1;              // где стоит робот (-1 значит «дома», у края)
+    let holding = false;           // держит ли робот звезду
+    let bag = 0;                   // сколько звёзд в рюкзаке
+    let cmd = 0;                   // какая команда выполняется сейчас
+    let round = 1;                 // какой круг идёт
+    let finished = false;          // цикл закончился?
+    let broken = false;            // программа сломалась?
+    let resting = false;           // пауза между кругами
+    let timer = null, mode = null; // таймер автопоказа
+
+    // Эта короткая запись ищет элемент по его имени (id).
+    const $ = (id) => document.getElementById(id);
+    const robot = $('robot');
+
+    // Эта функция считает, где на поле стоит звезда номер i.
+    const slotLeft = (i) => 12 + ((i + 0.5) / rounds) * 76;
+
+    // Эта функция рисует звёзды на поле.
+    function drawField() {
+      $('field').innerHTML = stars.map((taken, i) =>
+        `<div class="star ${taken ? 'taken' : ''}" style="left:${slotLeft(i)}%">⭐</div>`).join('');
+      robot.style.left = (robotAt < 0 ? 5 : slotLeft(robotAt)) + '%';
+      $('bagCount').textContent = bag;
+      $('roundBadge').textContent = finished ? 'Готово ✔' : `Круг ${round} из ${rounds}`;
+      robot.classList.toggle('holds', holding);
+    }
+
+    // Эта функция рисует программу: 4 команды со стрелками для перестановки.
+    function drawProgram() {
+      $('loopHead').textContent = `повтори ${rounds} раз:`;
+      $('program').innerHTML = order.map((id, i) => {
+        const c = COMMANDS[id];
+        const now = (i === cmd && !finished && !resting) ? 'now' : '';
+        const bad = (i === cmd && broken) ? 'bad' : '';
+        return `<div class="cmd ${now} ${bad}">
+            <span>${c.icon}</span>
+            <span class="flex-1 font-mono">${c.code}</span>
+            <button class="move-btn" data-up="${i}" type="button" aria-label="выше">↑</button>
+            <button class="move-btn" data-down="${i}" type="button" aria-label="ниже">↓</button>
+          </div>`;
+      }).join('');
+
+      // Здесь же считаем, сколько строк было бы без цикла.
+      const long = [];
+      for (let r = 0; r < rounds; r++) order.forEach((id) => long.push(COMMANDS[id].code));
+      $('noLoopLines').innerHTML = long.map((c, i) => `<div>${i + 1}. ${c}</div>`).join('');
+      $('noLoopCount').textContent = `С циклом — 5 строк. Без цикла — ${long.length} строк. Работа одна и та же!`;
+    }
+
+    // Эта функция обновляет подсказки, проценты и пример с умножением.
+    function drawText(hint, isError) {
+      if (hint !== undefined) {
+        $('hintText').textContent = hint;
+        $('hintText').classList.remove('pop'); void $('hintText').offsetWidth; $('hintText').classList.add('pop');
+      }
+      $('hintBox').classList.toggle('error', !!isError);
+      const percent = finished ? 100 : (cmd / 4) * 100;
+      $('progressFill').style.width = percent + '%';
+      $('progressLabel').textContent = Math.round(percent) + '%';
+      $('mathLine').textContent = `4 команды × ${rounds} звёзд = ${4 * rounds} действий.`;
+      $('leftLine').textContent = finished
+        ? '🎉 Цикл закончился сам. Нажми «Сначала».'
+        : `Осталось звёзд: ${stars.filter(t => !t).length}. Нажатий «Шаг» до конца: ${(rounds - round) * 4 + (4 - cmd)}.`;
+    }
+
+    // Эта функция перерисовывает весь экран сразу.
+    function render(hint, isError) {
+      document.body.classList.toggle('is-resting', resting);
+      drawField(); drawProgram(); drawText(hint, isError);
+    }
+
+    // Эта функция показывает ошибку: робот грустит, программа краснеет.
+    function fail(text) {
+      broken = true; stopAuto();
+      robot.classList.remove('busy', 'happy'); robot.classList.add('sad');
+      render(text, true);
+      $('doingNow').textContent = 'Бип запутался!';
+      $('seeNow').textContent = 'Проверь порядок команд стрелками ↑ ↓ и нажми «Сначала».';
+    }
+
+    // ====== ГЛАВНОЕ: ОДИН ШАГ ЦИКЛА ======
+    function advance() {
+      if (finished) { render('Цикл уже закончился. Нажми «Сначала».'); return 'done'; }
+      if (broken) { render('Сначала почини программу и нажми «Сначала».', true); return 'done'; }
+
+      const id = order[cmd];              // какая команда сейчас
+      const c = COMMANDS[id];
+      robot.classList.add('busy'); robot.classList.remove('sad');
+      $('doingNow').textContent = `${c.icon} ${c.title}`;
+      $('seeNow').textContent = 'На экране: ' + c.see;
+
+      if (id === 'GO') {                                    // ехать к ближайшей звезде
+        const target = stars.findIndex((t) => !t);
+        if (target === -1) { fail('Ехать некуда: звёзд не осталось.'); return 'done'; }
+        robotAt = target;
+      }
+
+      if (id === 'TAKE') {                                  // взять звезду
+        if (robotAt < 0 || stars[robotAt]) { fail('Нечего брать! Сначала команда «иди к звезде».'); return 'done'; }
+        if (holding) { fail('В руке уже звезда! Сначала «положи в рюкзак».'); return 'done'; }
+        stars[robotAt] = true; holding = true;
+        robot.classList.add('reach');
+        setTimeout(() => robot.classList.remove('reach'), 320);
+      }
+
+      if (id === 'PACK') {                                  // положить в рюкзак
+        if (!holding) { fail('В руке пусто! Сначала «возьми звезду».'); return 'done'; }
+        holding = false; bag++;
+        $('backpack').classList.add('bump');
+        setTimeout(() => $('backpack').classList.remove('bump'), 220);
+      }
+
+      if (id === 'CHECK') {                                // посмотреть, сколько звёзд осталось
+        const remaining = stars.filter((taken) => !taken).length;
+        $('seeNow').textContent = remaining === 0
+          ? 'На поле больше нет звёзд.'
+          : `Бип посчитал оставшиеся звёзды: ${remaining}.`;
+      }
+
+      cmd++;                                                // переходим к следующей строке
+      if (cmd < 4) { render(`${c.icon} ${c.title}`); return 'step'; }
+
+      // Круг закончился: 4 команды выполнены.
+      cmd = 0;
+      if (round >= rounds) {                                // звёзд больше нет
+        finished = true;
+        robot.classList.remove('busy'); robot.classList.add('happy');
+        render(`Стоп! ${rounds} круга(ов) сделано — цикл остановился сам.`);
+        $('doingNow').textContent = '🎉 Все звёзды собраны!';
+        $('seeNow').textContent = 'Бип улыбается: работа закончена.';
+        showCheer(`🎉 Ура! Бип собрал ${bag} звёзд за ${rounds} круга(ов)!`);
+        return 'done';
+      }
+
+      round++; resting = true;                              // короткая пауза между кругами
+      render(`Круг ${round - 1} готов. Начинаем круг ${round}.`);
+      setTimeout(() => { resting = false; render(); }, 340);
+      return 'round';
+    }
+
+    // ====== АВТОМАТИЧЕСКИЙ ПОКАЗ ======
+    function autoTick() {
+      const r = advance();
+      if (r === 'done' || (r === 'round' && mode === 'circle')) { stopAuto(); return; }
+      timer = setTimeout(autoTick, 850);
+    }
+    function startAuto(kind) { if (finished || broken) return; stopAuto(); mode = kind; $('btnRun').textContent = '⏸ Пауза'; timer = setTimeout(autoTick, 250); }
+    function stopAuto() { clearTimeout(timer); timer = null; mode = null; $('btnRun').textContent = '▶ Пуск'; }
+
+    // Эта функция возвращает всё в начало.
+    function reset() {
+      stopAuto();
+      stars = Array(rounds).fill(false);
+      robotAt = -1; holding = false; bag = 0; cmd = 0; round = 1;
+      finished = false; broken = false; resting = false;
+      robot.className = 'robot';
+      render('Нажми «Шаг →» и смотри, что сделает Бип.');
+      $('doingNow').textContent = 'Ждёт команду.';
+      $('seeNow').textContent = 'На экране: робот стоит у края поля.';
+      drawPrint();
+      try { localStorage.setItem('robotLab', JSON.stringify({ rounds, order })); } catch (e) {}
+    }
+
+    // Эта функция готовит памятку для печати.
+    function drawPrint() {
+      $('printTitle').textContent = 'Памятка: как работает цикл (робот Бип)';
+      $('printTable').innerHTML = '<tr><th>Команда</th><th>Что делает Бип</th><th>Что видно на экране</th></tr>' +
+        RIGHT_ORDER.map((id, i) => `<tr><td>${i + 1}. ${COMMANDS[id].code}</td><td>${COMMANDS[id].title}</td><td>${COMMANDS[id].see}</td></tr>`).join('');
+      $('printRule').textContent = `Правило: цикл — это «повтори команды ещё раз». 4 команды × ${rounds} звёзд = ${4 * rounds} действий, а программа короткая.`;
+    }
+
+    // Эта функция показывает табличку и салют.
+    function showCheer(text) {
+      const box = $('cheer');
+      box.textContent = text || '🎉 Ура!';
+      box.classList.add('show');
+      clearTimeout(showCheer.t);
+      showCheer.t = setTimeout(() => box.classList.remove('show'), 2800);
+      const colors = ['#ffd36b', '#ff8f4a', '#7fd1b9', '#2f6fd0', '#e8553f'];
+      const cx = innerWidth / 2, cy = innerHeight * 0.25;
+      for (let i = 0; i < 24; i++) {
+        const d = document.createElement('div');
+        d.className = 'spark';
+        d.style.background = colors[i % colors.length];
+        d.style.left = cx + 'px'; d.style.top = cy + 'px';
+        const a = (Math.PI * 2 * i) / 24, far = 120 + Math.random() * 140;
+        d.style.setProperty('--dx', Math.cos(a) * far + 'px');
+        d.style.setProperty('--dy', Math.sin(a) * far + 'px');
+        document.body.appendChild(d);
+        setTimeout(() => d.remove(), 1050);
+      }
+    }
+
+    // ====== КНОПКИ ======
+    $('btnStep').addEventListener('click', () => { stopAuto(); advance(); });
+    $('btnCircle').addEventListener('click', () => startAuto('circle'));
+    $('btnRun').addEventListener('click', () => { timer ? stopAuto() : startAuto('run'); });
+    $('btnReset').addEventListener('click', reset);
+    $('btnCheer').addEventListener('click', () => showCheer('🎉 Вот так Бип радуется в конце цикла!'));
+    $('btnPrint').addEventListener('click', () => { drawPrint(); window.print(); });
+
+    // Эти кнопки меняют число звёзд на поле.
+    $('btnMinus').addEventListener('click', () => { rounds = Math.max(1, rounds - 1); $('roundsValue').textContent = rounds; reset(); });
+    $('btnPlus').addEventListener('click', () => { rounds = Math.min(8, rounds + 1); $('roundsValue').textContent = rounds; reset(); });
+
+    // Эта кнопка выбирает гарантированно неправильный порядок команд.
+    $('btnShuffle').addEventListener('click', () => {
+      const wrongOrders = [
+        ['TAKE', 'GO', 'PACK', 'CHECK'],
+        ['GO', 'PACK', 'TAKE', 'CHECK'],
+        ['PACK', 'GO', 'TAKE', 'CHECK']
+      ];
+      order = [...wrongOrders[Math.floor(Math.random() * wrongOrders.length)]];
+      reset();
+      render('Ой! Команды перепутались. Найди правильный порядок стрелками ↑ ↓.');
+    });
+
+    // Эта кнопка возвращает правильный порядок команд.
+    $('btnFix').addEventListener('click', () => { order = [...RIGHT_ORDER]; reset(); render('Порядок правильный. Можно запускать!'); });
+
+    // Эта кнопка показывает длинный список команд без цикла.
+    $('btnNoLoop').addEventListener('click', () => {
+      const open = $('noLoopBox').classList.toggle('hidden') === false;
+      $('btnNoLoop').textContent = open ? '✖ Спрятать' : '🤔 А без цикла?';
+    });
+
+    // Эти стрелки двигают команду вверх или вниз.
+    $('program').addEventListener('click', (e) => {
+      const up = e.target.dataset.up, down = e.target.dataset.down;
+      if (up === undefined && down === undefined) return;
+      const i = Number(up ?? down);
+      const j = up !== undefined ? i - 1 : i + 1;
+      if (j < 0 || j > 3) return;
+      [order[i], order[j]] = [order[j], order[i]];     // меняем две команды местами
+      reset();
+      render(order.join() === RIGHT_ORDER.join() ? 'Порядок правильный! Нажми «▶ Пуск».' : 'Порядок изменён. Проверь, сработает ли.');
+    });
+
+    // Эти клавиши помогают вести урок без мышки.
+    document.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (e.code === 'Space') { e.preventDefault(); stopAuto(); advance(); }
+      if (e.key === 'ArrowRight') { stopAuto(); advance(); }
+      if (k === 'r' || k === 'к') reset();
+      if (k === 'c' || k === 'с') startAuto('circle');
+      if (k === 's' || k === 'ы') showCheer('🎉 Вот так Бип радуется!');
+    });
+
+    // Эти строки вспоминают настройки с прошлого урока.
+    try {
+      const saved = JSON.parse(localStorage.getItem('robotLab') || '{}');
+      if (Number.isInteger(saved.rounds)) rounds = Math.min(8, Math.max(1, saved.rounds));
+      if (Array.isArray(saved.order) && saved.order.length === 4) order = saved.order;
+    } catch (e) {}
+    $('roundsValue').textContent = rounds;
+
+    // Эта строка запускает тренажёр при открытии страницы.
+    reset();
+  </script>
+</body>
+</html>
